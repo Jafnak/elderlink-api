@@ -3,8 +3,10 @@ const bcrypt = require("bcrypt")
 const express = require("express")
 const jwt = require("jsonwebtoken")
 const cors = require("cors")
-const { elderModel } = require("./models/user")
-const { aloginModel } = require("./models/admin")
+const { userModel } = require("./models/user")
+const { adminModel } = require("./models/admin")
+const { caretakerModel } = require("./models/caretaker")
+const { driverModel } = require("./models/driver")
 
 const app = express()
 app.use(cors())
@@ -17,24 +19,26 @@ const generateHashedPassword = async (password) => {
     return bcrypt.hash(password, salt)
 }
 
-app.post("/signUp", async (req, res) => {
+//---------------------USER SIGNUP----------------------------------------------------------------
+
+app.post("/usersignup", async (req, res) => {
 
     let input = req.body
     let hashedPassword = await generateHashedPassword(input.password)
     console.log(hashedPassword)
 
     input.password = hashedPassword     //stored the hashed password to server
-    let user = new elderModel(input)
+    let user = new userModel(input)
     user.save()
     console.log(user)
     res.json({ "status": "success" })
 })
 
+//----------------------------------USER SIGN IN-----------------------------------
 
-
-app.post("/signin", (req, res) => {
+app.post("/usersignin", (req, res) => {
     let input = req.body
-    aloginModel.find({ "email": req.body.email }).then(
+    userModel.find({ "emailid": req.body.emailid}).then(
         (response) => {
             if (response.length > 0) {
                 let dbPassword = response[0].password  //entered email is compared with existing password(email)
@@ -42,12 +46,12 @@ app.post("/signin", (req, res) => {
                 bcrypt.compare(input.password, dbPassword, (error, isMatch) => { //input pswd and hashed pswd is  compared
                     if (isMatch) {
                         //if login success generate token
-                        jwt.sign({ email: input.email }, "elder-app", { expiresIn: "1d" },
+                        jwt.sign({ emailid: input.emailid }, "elder-app", { expiresIn: "1d" },
                             (error, token) => {
                                 if (error) {
                                     res.json({ "status": "unable to create token" })
                                 } else {
-                                    res.json({ "status": "success", "userId": response[0]._id, "token": token })
+                                    res.json({ "status": "success", "userid": response[0]._id, "token": token })
                                 }
                             }
                         )
@@ -63,7 +67,7 @@ app.post("/signin", (req, res) => {
     ).catch()
 })
 
-
+//----------------------------ADMIN LOGIN----------------------------------------------
 
 app.post("/adminlogin", (req, res) => {
     let input = req.body;
@@ -73,9 +77,9 @@ app.post("/adminlogin", (req, res) => {
     const adminPassword = 'admin123';
 
     // Check if the input matches admin credentials
-    if (input.email === adminEmail && input.password === adminPassword) {
+    if (input.emailid === adminEmail && input.password === adminPassword) {
         // Admin login successful
-        jwt.sign({ email: input.email }, "elder-app", { expiresIn: "1d" }, (error, token) => {
+        jwt.sign({ emailid: input.emailid }, "elder-app", { expiresIn: "1d" }, (error, token) => {
             if (error) {
                 res.json({ "status": "Token credentials failed" });
             } else {
@@ -84,12 +88,12 @@ app.post("/adminlogin", (req, res) => {
         });
     } else {
         // Check if the user exists in the database
-        aloginModel.find({ name: input.name }).then((response) => {
+        adminModel.find({ name: input.emailid }).then((response) => {
             if (response.length > 0) {
                 const validator = bcrypt.compareSync(input.password, response[0].password);
                 if (validator) {
                     // User login successful
-                    jwt.sign({ email: input.email}, "elder-app", { expiresIn: "1d" }, (error, token) => {
+                    jwt.sign({ emailid: input.emailid}, "elder-app", { expiresIn: "1d" }, (error, token) => {
                         if (error) {
                             res.json({ "status": "Token credentials failed" });
                         } else {
@@ -109,6 +113,46 @@ app.post("/adminlogin", (req, res) => {
 });
 
 
+
+//-------------------------------ADD CARETAKER------------------------------------------
+app.post("/addcaretaker",(req,res)=>{
+    let input=req.body
+    let caretaker = new caretakerModel(input)
+    caretaker.save()
+    res.json({"status":"success"})
+})
+
+//-----------------------------------VIEW CARETAKERS---------------------------------------
+app.post("/caretakerview",(req,res)=>{
+    caretakerModel.find().then(
+        (data)=>{
+            res.json(data)
+        }
+    ).catch(
+        (error)=>{
+            res.json(error)
+        }
+    )
+})
+//------------------------------------ADD DRIVERS--------------------------------------------
+app.post("/adddriver",(req,res)=>{
+    let input=req.body
+    let driver = new driverModel(input)
+    driver.save()
+    res.json({"status":"success"})
+})
+//--------------------------------VIEW DRIVERS--------------------------------------------------
+app.post("/driverview",(req,res)=>{
+    driverModel.find().then(
+        (data)=>{
+            res.json(data)
+        }
+    ).catch(
+        (error)=>{
+            res.json(error)
+        }
+    )
+})
 
 
 app.listen(8080, () => {

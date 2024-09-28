@@ -1,11 +1,11 @@
 const mongoose = require("mongoose")
-const schema = mongoose.Schema(
+const adminschema = mongoose.Schema(
     {
        
-        "email":{type:String,required:true},
-        "password":{type:String,required:true}
+        emailid:{type:String,required:true},
+        password:{type:String,required:true}
     
     }
 )
-let aloginModel = mongoose.model("alogindata",schema)
-module.exports={aloginModel}
+let adminModel = mongoose.model("alogindata",adminschema)
+module.exports={adminModel}
