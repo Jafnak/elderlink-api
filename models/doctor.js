@@ -4,7 +4,6 @@ const doctorschema = mongoose.Schema(
        
         "name":{type:String,required:true},
         "specialization":{type:String,required:true},
-        "clinic":{type:String,required:true},
         "location":{type:String,required:true},
         "phone":{type:String,required:true},
         

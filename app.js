@@ -7,6 +7,7 @@ const { userModel } = require("./models/user")
 const { adminModel } = require("./models/admin")
 const { caretakerModel } = require("./models/caretaker")
 const { driverModel } = require("./models/driver")
+const { doctorModel } = require("./models/doctor")
 
 const app = express()
 app.use(cors())
@@ -25,14 +26,28 @@ app.post("/usersignup", async (req, res) => {
 
     let input = req.body
     let hashedPassword = await generateHashedPassword(input.password)
-    console.log(hashedPassword)
+    //console.log(hashedPassword)
 
     input.password = hashedPassword     //stored the hashed password to server
     let user = new userModel(input)
     user.save()
-    console.log(user)
+    //console.log(user)
     res.json({ "status": "success" })
 })
+//--------------------------------USER VIEW-------------------------------
+app.post("/userview",(req,res)=>{
+    userModel.find().then(
+        (data)=>{
+            res.json(data)
+        }
+    ).catch(
+        (error)=>{
+            res.json(error)
+        }
+    )
+})
+
+
 
 //----------------------------------USER SIGN IN-----------------------------------
 
@@ -42,7 +57,7 @@ app.post("/usersignin", (req, res) => {
         (response) => {
             if (response.length > 0) {
                 let dbPassword = response[0].password  //entered email is compared with existing password(email)
-                console.log(dbPassword)
+            
                 bcrypt.compare(input.password, dbPassword, (error, isMatch) => { //input pswd and hashed pswd is  compared
                     if (isMatch) {
                         //if login success generate token
@@ -153,6 +168,29 @@ app.post("/driverview",(req,res)=>{
         }
     )
 })
+
+
+//------------------------------------ADD DOCTORS--------------------------------------------
+app.post("/adddoctor",(req,res)=>{
+    let input=req.body
+    let doctor = new doctorModel(input)
+    doctor.save()
+    res.json({"status":"success"})
+})
+
+//--------------------------------VIEW DOCTOR--------------------------------------------------
+app.post("/doctorview",(req,res)=>{
+    doctorModel.find().then(
+        (data)=>{
+            res.json(data)
+        }
+    ).catch(
+        (error)=>{
+            res.json(error)
+        }
+    )
+})
+
 
 
 app.listen(8080, () => {
