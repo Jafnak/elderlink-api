@@ -3,6 +3,12 @@ const bcrypt = require("bcrypt")
 const express = require("express")
 const jwt = require("jsonwebtoken")
 const cors = require("cors")
+
+const nodemailer = require('nodemailer'); // Add this line at the top of your file
+const bodyParser = require('body-parser');
+
+require('dotenv').config(); 
+
 const { userModel } = require("./models/user")
 const { adminModel } = require("./models/admin")
 const { caretakerModel } = require("./models/caretaker")
@@ -13,6 +19,8 @@ const { Appointment } = require("./models/appointment")
 const app = express()
 app.use(cors())
 app.use(express.json())
+app.use(bodyParser.json());
+
 
 mongoose.connect("mongodb+srv://Jafna02:jafna9074@cluster0.icijy.mongodb.net/ElderlinkDb?retryWrites=true&w=majority&appName=Cluster0")
 
@@ -85,9 +93,9 @@ app.post("/usersignin", (req, res) => {
             if (user) {
                 // Define static passwords for roles
                 const staticPasswords = {
-                    doctor: "doctor987",
-                    driver: "driver986",
-                    caretaker: "caretaker985",
+                    doctor: "doctor988",
+                    driver: "driver988",
+                    caretaker: "caretaker988",
                 };
 
                 // Check if the role matches the user's role
@@ -239,18 +247,31 @@ app.post("/adddoctor",(req,res)=>{
 
 //--------------------------------VIEW DOCTOR--------------------------------------------------
 app.post("/doctorview", (req, res) => {
-    doctorModel.find() // Assuming you're fetching doctors from a Doctor model
+    const { searchQuery, specializationQuery } = req.body;  // Get search and specialization queries from request body
+
+    // Build the query object dynamically based on the provided inputs
+    const query = {};
+
+    if (searchQuery) {
+        query.name = { $regex: new RegExp(searchQuery, 'i') };  // Case-insensitive name search
+    }
+
+    if (specializationQuery) {
+        query.specialization = { $regex: new RegExp(specializationQuery, 'i') };  // Case-insensitive specialization search
+    }
+
+    doctorModel.find(query)  // Find doctors based on the query
         .then(doctors => {
-            // Map to include appointment fees in the response
+            // Map the doctor data to include appointment fees
             const doctorData = doctors.map(doctor => ({
                 _id: doctor._id,
                 name: doctor.name,
                 specialization: doctor.specialization,
                 location: doctor.location,
                 phone: doctor.phone,
-                appointmentFee: 250 // Set static fee or fetch from the database if needed
+                appointmentFee: 250  // Static fee (can also fetch from database if required)
             }));
-            res.json(doctorData);
+            res.json(doctorData);  // Send the filtered doctor data
         })
         .catch(error => {
             console.error(error);
@@ -258,35 +279,40 @@ app.post("/doctorview", (req, res) => {
         });
 });
 
-
-
-// app.post("/doctorview",(req,res)=>{
-//     doctorModel.find().then(
-//         (data)=>{
-//             res.json(data)
-//         }
-//     ).catch(
-//         (error)=>{
-//             res.json(error)
-//         }
-//     )
-// })
+//--------------------------DELETE DOCTOR----------------
+app.delete('/deletedoctor/:emailid', (req, res) => {
+    const emailid = req.params.emailid;
+  
+    doctorModel.findOneAndDelete({ emailid: emailid })
+      .then((result) => {
+        if (result) {
+          res.status(200).json({ message: 'Doctor deleted successfully', doctor: result });
+        } else {
+          res.status(404).json({ message: 'Doctor not found' });
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        res.status(500).json({ message: 'Error deleting doctor' });
+      });
+  });
+  
+app.post("/admindoctorview",(req,res)=>{
+   doctorModel.find().then(
+         (data)=>{
+            res.json(data)
+        }
+    ).catch(
+        (error)=>{
+            res.json(error)
+        }
+    )
+})
 
 
 //-------------AVAILABILITY--------------
 
-app.post('/updateAvailability', (req, res) => {
-    const { doctorId, availability } = req.body;
-    
-    doctorModel.findByIdAndUpdate(doctorId, { availability }, { new: true })
-        .then(updatedDoctor => {
-            // Optionally send a message to the doctor via email or notification system here
-            res.json({ status: "success", doctor: updatedDoctor });
-        })
-        .catch(err => {
-            res.json({ status: "error", message: err.message });
-        });
-});
+
 
 //---------------------BOOK APPOINT-----------------------------
 
@@ -333,6 +359,37 @@ const bookAppointment = (req, res) => {
       res.status(500).json({ message: "Error booking appointment", error: err.message });
     });
 };
+
+//-------------------------------EMAIL----------------------------------
+
+// Email configuration
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER, // Your email stored in environment variables
+        pass: process.env.EMAIL_PASS  // Your email password or app-specific password stored in environment variables
+    }
+});
+
+app.post('/send-alert', (req, res) => {
+    const { email, alertMessage } = req.body;
+
+    const mailOptions = {
+        from: process.env.EMAIL_USER, // The sender email from environment variable
+        to: email,
+        subject: 'Emergency Alert from ElderLink App',
+        text: alertMessage
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+            return res.status(500).send(error.toString());
+        }
+        res.status(200).send('Alert sent: ' + info.response);
+    });
+});
+
+
 
 
 

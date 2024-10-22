@@ -7,7 +7,8 @@ const driverschema = mongoose.Schema(
         "phone":{type:String,required:true},
         "location":{type:String,required:true},
         "gender":{type:String,required:true},
-        "age":{type:String,required:true},
+        "date":{type:String,required:true},
+        "time":{type:String,required:true}
        
     
     }

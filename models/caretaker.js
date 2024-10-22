@@ -7,7 +7,9 @@ const caretakerschema = mongoose.Schema(
         "phone":{type:String,required:true},
         "address":{type:String,required:true},
         "gender":{type:String,required:true},
-        "role":{type:String,required:true}
+        "role":{type:String,required:true},
+        "date":{type:String,required:true},
+        "time":{type:String,required:true},
     
     }
 )

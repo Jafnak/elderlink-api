@@ -1,1 +1,10 @@
-node_modules/
+# dependencies
+/node_modules
+
+# environment variables
+.env             # Add this to ignore the .env file
+
+# other generated files and logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

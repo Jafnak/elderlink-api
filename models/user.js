@@ -11,7 +11,7 @@ const schema = mongoose.Schema(
         "confirmpass":{type:String,required:true},
         "gardian":{type:String,required:true},
         "gardemail":{type:String,required:true},
-        "role": { type: String, required: true, enum: ['user', 'doctor', 'caretaker', 'driver'] }
+        "role": { type: String, enum: ['user', 'doctor', 'caretaker', 'driver'] }
 
     }
 )
