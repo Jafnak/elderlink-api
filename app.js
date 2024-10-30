@@ -15,6 +15,10 @@ const { caretakerModel } = require("./models/caretaker")
 const { driverModel } = require("./models/driver")
 const { doctorModel } = require("./models/doctor")
 const { Appointment } = require("./models/appointment")
+const { bookModel } = require("./models/book")
+const feedbackModel = require("./models/feedback")
+
+
 
 const app = express()
 app.use(cors())
@@ -44,20 +48,167 @@ app.post("/usersignup", async (req, res) => {
     res.json({ "status": "success" })
 })
 //--------------------------------USER VIEW-------------------------------
-app.post("/userview",(req,res)=>{
-    userModel.find().then(
-        (data)=>{
-            res.json(data)
+app.post("/userview", (req, res) => {
+    const { name, emailid } = req.body;
+
+    // Create a filter object based on search inputs
+    let filter = {};
+    if (name) filter.name = { $regex: name, $options: "i" }; // Case-insensitive search for name
+    if (emailid) filter.emailid = { $regex: emailid, $options: "i" }; // Case-insensitive search for email
+
+    userModel.find(filter)
+        .then((data) => {
+            res.json(data);
+        })
+        .catch((error) => {
+            res.json(error);
+        });
+});
+
+
+
+app.delete("/deleteuser/:id", (req, res) => {
+    const userId = req.params.id;
+
+    userModel.findByIdAndDelete(userId)
+        .then(() => {
+            res.json({ status: "success" });
+        })
+        .catch((error) => {
+            res.json({ status: "error", error });
+        });
+});
+
+//----------------------BOOKING DOCTOR--------------------------------------------
+// Route to book a service
+app.post("/bookingdoctor", async (req, res) => {
+    const { emailid, services, name, date, time } = req.body;
+
+    try {
+        // Check if the provider is already booked for the same date and time
+        const existingBooking = await bookModel.findOne({ services, name, date, time });
+
+        if (existingBooking) {
+            return res.json({ status: 'error', message: 'Service provider already booked for this time slot. Please choose a different time or service provider.' });
+        } else {
+            // Create a new booking
+            let book = new bookModel({ emailid, services, name, date, time });
+            await book.save();
+            res.json({ status: 'success', message: 'Successfully booked' });
         }
-    ).catch(
-        (error)=>{
-            res.json(error)
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 'error', message: 'Server error' });
+    }
+});
+
+// Route to view all bookings
+app.get("/viewbooking", (req, res) => {
+    bookModel.find()
+        .then((data) => res.json(data))
+        .catch((error) => {
+            console.error(error);
+            res.status(500).json({ status: 'error', message: 'Server error' });
+        });
+});
+
+// Route to delete a booking by email and service
+app.delete('/deletebooking/:emailid/:service', async (req, res) => {
+    const { emailid, services } = req.params;
+
+    try {
+        const result = await bookModel.deleteOne({ emailid, services: services });
+        if (result.deletedCount > 0) {
+            res.status(200).json({ status: 'success', message: 'Booking deleted successfully' });
+        } else {
+            res.status(404).json({ status: 'error', message: 'Booking not found for this service' });
         }
-    )
-})
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 'error', message: 'Server error' });
+    }
+});
+
+app.get("/doctors", async (req, res) => {
+    try {
+        const doctors = await doctorModel.find(); // Fetch all doctors from your database
+        res.json(doctors);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 
+app.post('/searchbooking', (req, res) => {
+    const { emailid, date } = req.body;
+  
+    // Debugging: Log the incoming request
+   // console.log('Search query:', { emailid, date });
+  
+    if (!emailid || !date) {
+      return res.status(400).json({ message: "Both emailid and date are required." });
+    }
+  
+    bookModel.find({ emailid, date })
+      .then(appointments => {
+        if (appointments.length > 0) {
+         // console.log('Appointments found:', appointments);
+          res.json(appointments);
+        } else {
+          console.log('No appointments found for the given email and date.');
+          res.json([]);  // Return empty array if no bookings found
+        }
+      })
+      .catch(error => {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+      });
+  });
+  
 
+
+  //-------------------DRIVER--------------------------
+
+  // Define your booking schema
+const bookingSchema = new mongoose.Schema({
+    emailid: { type: String, required: true },
+    services: { type: String, required: true },
+    name: { type: String, required: true },
+    date: { type: String, required: true },
+    time: { type: String, required: true },
+    location: { type: String, required: true }, // Include location in your schema
+});
+  const Booking = mongoose.model('Booking', bookingSchema);
+
+  // Endpoint to submit location
+  app.post('/submitLocation', (req, res) => {
+      const { location } = req.body;
+  
+      if (!location) {
+          return res.status(400).json({ status: "error", message: "Location is required." });
+      }
+  
+      // Query for bookings based on the user's location (you can customize this as needed)
+      Booking.findOne({ /* Add conditions based on your logic */ })
+          .then(booking => {
+              if (booking) {
+                  // Example response with booking details
+                  res.json({
+                      status: "success",
+                      bookingDetails: `Booking for ${booking.emailid} on ${booking.date} at ${booking.time}`,
+                  });
+              } else {
+                  res.json({ status: "error", message: "No bookings found for this location." });
+              }
+          })
+          .catch(err => {
+              console.error(err);
+              res.status(500).json({ status: "error", message: "Server error." });
+          });
+  });
+  
+  
 //----------------------------------USER SIGN IN-----------------------------------
 
 app.post("/usersignin", (req, res) => {
@@ -203,19 +354,54 @@ app.post("/addcaretaker",(req,res)=>{
     caretaker.save()
     res.json({"status":"success"})
 })
+//-----------------care personal--------------------
+app.get("/searchcaretaker", async (req, res) => {
+    const { name, role } = req.query;
+
+    try {
+        const caretakers = await caretakerModel.find({ name: { $regex: name, $options: 'i' }, role });
+        res.json(caretakers);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 
 //-----------------------------------VIEW CARETAKERS---------------------------------------
-app.post("/caretakerview",(req,res)=>{
-    caretakerModel.find().then(
-        (data)=>{
-            res.json(data)
-        }
-    ).catch(
-        (error)=>{
-            res.json(error)
-        }
-    )
-})
+app.post("/caretakerview", (req, res) => {
+    const { searchQuery ,roleQuery} = req.body;
+    
+    const query = {};
+    
+    if (searchQuery) {
+        query.name = { $regex: new RegExp(searchQuery, 'i') };  // Case-insensitive search by name
+    }
+  // Case-insensitive search for specialization
+  if (roleQuery) {
+    query.role = { $regex: new RegExp(roleQuery, 'i') };
+  }
+    caretakerModel.find(query)
+        .then(data => {
+            res.json(data);
+        })
+        .catch(error => {
+            res.status(500).json({ message: "Error fetching caretaker data", error });
+        });
+});
+
+// Delete a caretaker by emailid
+app.delete("/deletecaretaker/:emailid", (req, res) => {
+    const emailid = req.params.emailid;
+    
+    caretakerModel.findOneAndDelete({ emailid })
+        .then(() => {
+            res.json({ message: "Caretaker deleted successfully" });
+        })
+        .catch(error => {
+            res.status(500).json({ message: "Error deleting caretaker", error });
+        });
+});
 //------------------------------------ADD DRIVERS--------------------------------------------
 app.post("/adddriver",(req,res)=>{
     let input=req.body
@@ -238,76 +424,92 @@ app.post("/driverview",(req,res)=>{
 
 
 //------------------------------------ADD DOCTORS--------------------------------------------
-app.post("/adddoctor",(req,res)=>{
-    let input=req.body
-    let doctor = new doctorModel(input)
+app.post("/adddoctor", (req, res) => {
+    const input = req.body;
+    const doctor = new doctorModel(input);
+    
     doctor.save()
-    res.json({"status":"success"})
-})
-
-//--------------------------------VIEW DOCTOR--------------------------------------------------
-app.post("/doctorview", (req, res) => {
-    const { searchQuery, specializationQuery } = req.body;  // Get search and specialization queries from request body
-
-    // Build the query object dynamically based on the provided inputs
-    const query = {};
-
-    if (searchQuery) {
-        query.name = { $regex: new RegExp(searchQuery, 'i') };  // Case-insensitive name search
-    }
-
-    if (specializationQuery) {
-        query.specialization = { $regex: new RegExp(specializationQuery, 'i') };  // Case-insensitive specialization search
-    }
-
-    doctorModel.find(query)  // Find doctors based on the query
-        .then(doctors => {
-            // Map the doctor data to include appointment fees
-            const doctorData = doctors.map(doctor => ({
-                _id: doctor._id,
-                name: doctor.name,
-                specialization: doctor.specialization,
-                location: doctor.location,
-                phone: doctor.phone,
-                appointmentFee: 250  // Static fee (can also fetch from database if required)
-            }));
-            res.json(doctorData);  // Send the filtered doctor data
-        })
-        .catch(error => {
-            console.error(error);
-            res.status(500).json({ message: 'Error fetching doctor data' });
-        });
-});
-
-//--------------------------DELETE DOCTOR----------------
-app.delete('/deletedoctor/:emailid', (req, res) => {
-    const emailid = req.params.emailid;
-  
-    doctorModel.findOneAndDelete({ emailid: emailid })
-      .then((result) => {
-        if (result) {
-          res.status(200).json({ message: 'Doctor deleted successfully', doctor: result });
-        } else {
-          res.status(404).json({ message: 'Doctor not found' });
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-        res.status(500).json({ message: 'Error deleting doctor' });
-      });
+      .then(() => res.json({ status: "success" }))
+      .catch(error => res.status(500).json({ message: "Error adding doctor", error: error.message }));
   });
   
-app.post("/admindoctorview",(req,res)=>{
-   doctorModel.find().then(
-         (data)=>{
-            res.json(data)
-        }
-    ).catch(
-        (error)=>{
-            res.json(error)
-        }
-    )
-})
+//--------------------------------VIEW DOCTOR--------------------------------------------------
+// Doctor View Route
+app.post("/doctorview", (req, res) => {
+    const { searchQuery, specializationQuery } = req.body;
+    
+    const query = {};
+  
+    // Case-insensitive search for name
+    if (searchQuery) {
+      query.name = { $regex: new RegExp(searchQuery, 'i') };
+    }
+  
+    // Case-insensitive search for specialization
+    if (specializationQuery) {
+      query.specialization = { $regex: new RegExp(specializationQuery, 'i') };
+    }
+  
+    // Fetch doctors based on query
+    doctorModel.find(query)
+      .then(doctors => {
+        //console.log(doctors);  // Debugging: Check if emailid exists in the response
+        const doctorData = doctors.map(doctor => ({
+          _id: doctor._id,
+          name: doctor.name,
+          specialization: doctor.specialization,
+          location: doctor.location,
+          phone: doctor.phone,
+          emailid: doctor.emailid,  // Ensure emailid is included
+          date: doctor.date,
+          time: doctor.time
+        }));
+        res.json(doctorData);
+      })
+      .catch(error => res.status(500).json({ message: "Error fetching doctor data", error }));
+  });
+  
+  // Route to delete a doctor by emailid
+  app.delete("/deletedoctor/:emailid", (req, res) => {
+    const emailid = req.params.emailid;
+    
+    doctorModel.findOneAndDelete({ emailid: emailid })
+      .then(() => res.status(200).json({ message: "Doctor deleted successfully" }))
+      .catch(error => res.status(500).json({ message: "Error deleting doctor", error }));
+  });
+  
+// app.post("/book-appointment", (req, res) => {
+//   const { doctorName, date, time, userEmail } = req.body;
+  
+//   const newAppointment = new Appointment({
+//     doctorName,
+//     date,
+//     time,
+//     userEmail
+//   });
+
+//   newAppointment.save()
+//     .then(() => userModel.findOne({ emailid: userEmail }))
+//     .then(user => {
+//       if (!user) {
+//         return res.status(404).json({ message: "User not found" });
+//       }
+//       res.status(200).json({
+//         message: "Appointment booked successfully!",
+//         userDetails: {
+//           name: user.name,
+//           phone: user.phone,
+//           address: user.address,
+//           gender: user.gender,
+//           age: user.age,
+//           guardian: user.gardian,
+//           guardianEmail: user.gardemail
+//         }
+//       });
+//     })
+//     .catch(error => res.status(500).json({ message: "Error booking appointment", error: error.message }));
+// });
+
 
 
 //-------------AVAILABILITY--------------
@@ -317,48 +519,6 @@ app.post("/admindoctorview",(req,res)=>{
 //---------------------BOOK APPOINT-----------------------------
 
 
- // For parsing application/json
-
-// Connect to MongoDB
-
-
-// When booking an appointment, include the user's email
-const bookAppointment = (req, res) => {
-  const { doctorName, date, time, userEmail } = req.body; // Assuming you're sending userEmail from the frontend
-  
-  const newAppointment = new Appointment({
-    doctorName,
-    date,
-    time,
-    userEmail // Save the user's email who booked the appointment
-  });
-
-  newAppointment.save()
-    .then(() => {
-      // Fetch user details after saving the appointment
-      return userModel.findOne({ emailid: userEmail }); // Change 'emailid' based on your user model
-    })
-    .then(user => {
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      res.status(200).json({
-        message: "Appointment booked successfully!",
-        userDetails: {
-          name: user.name,
-          phone: user.phone,
-          address: user.address,
-          gender: user.gender,
-          age: user.age,
-          guardian: user.gardian,
-          guardianEmail: user.gardemail,
-        },
-      });
-    })
-    .catch(err => {
-      res.status(500).json({ message: "Error booking appointment", error: err.message });
-    });
-};
 
 //-------------------------------EMAIL----------------------------------
 
@@ -383,19 +543,102 @@ app.post('/send-alert', (req, res) => {
 
     transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
+            console.error("Email sending error:", error); // Log the error for debugging
             return res.status(500).send(error.toString());
         }
         res.status(200).send('Alert sent: ' + info.response);
     });
+    
+});
+
+
+
+//---------------------FEEDBACK-------------------------
+app.post('/submitFeedback', async (req, res) => {
+    try {
+        const { email, message } = req.body;
+
+        if (!email || !message) {
+            return res.status(400).json({ error: 'All fields are required' });
+        }
+
+        const newFeedback = new feedbackModel({
+            email,
+            message
+        });
+
+        await newFeedback.save();
+        res.status(201).json({ message: 'Feedback submitted successfully' });
+    } catch (err) {
+        console.error('Error submitting feedback:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+// Route to get all feedbacks
+app.get('/getFeedbacks', async (req, res) => {
+    try {
+        const feedbacks = await feedbackModel.find();
+        res.status(200).json(feedbacks);
+    } catch (err) {
+        res.status(500).json({ error: 'Error fetching feedbacks' });
+    }
+});
+
+// Route to delete a feedback by ID
+app.delete('/deleteFeedback/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await feedbackModel.findByIdAndDelete(id);
+        res.status(200).json({ message: 'Feedback deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Error deleting feedback' });
+    }
 });
 
 
 
 
 
-// Start the server
+// -------------PROFILE--------------------
+app.get('/profile/:emailid', async (req, res) => {
+    console.log('Received request for profile email:', req.params.emailid); // Debug log
+    try {
+        const user = await userModel.findOne({ emailid: req.params.emailid }); // Corrected here
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.status(200).json(user);
+    } catch (err) {
+        console.error('Error fetching user:', err); // Added error log
+        res.status(400).json({ error: err.message });
+    }
+});
 
 
+app.get('/userprofile', async (req, res) => {
+    try {
+        const profiles = await userModel.find();
+        res.json(profiles);
+    } catch (err) {
+        console.error('Error fetching profiles:', err); // Added error log
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+
+
+app.post('/doctor/bookings', async (req, res) => {
+    const { emailid } = req.body; // Extract the email ID from the request body
+    try {
+        const bookings = await bookModel.find({ emailid }); // Fetch bookings associated with the plumber's email
+        res.json(bookings);
+    } catch (error) {
+        console.error('Error fetching bookings:', error);
+        res.status(500).json({ status: 'error', message: 'Server error' });
+    }
+});
   
 
 

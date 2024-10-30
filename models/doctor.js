@@ -9,7 +9,7 @@ const doctorschema = mongoose.Schema(
         "phone":{type:String,required:true},
         "date":{type:String,required:true},
         "time":{type:String,required:true},
-        
+        "availability":{type:String}
        
     
     }
